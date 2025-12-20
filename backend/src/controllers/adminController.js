@@ -680,6 +680,74 @@ const deleteSessionReport = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Update session reconciliation (cash submitted)
+ * PUT /api/admin/shops/:shopId/session-reports/:reportId/reconcile
+ * Admin can update this anytime
+ */
+const updateSessionReconciliation = asyncHandler(async (req, res) => {
+    const { shopId, reportId } = req.params;
+    const { cashSubmitted } = req.body;
+
+    if (cashSubmitted === undefined || cashSubmitted === null) {
+        return res.status(400).json({
+            success: false,
+            message: 'Cash submitted amount is required',
+        });
+    }
+
+    // Get shop info
+    const adminConn = await connectAdminDB();
+    const Shop = adminConn.model('Shop', shopSchema);
+    const shop = await Shop.findById(shopId);
+
+    if (!shop) {
+        return res.status(404).json({
+            success: false,
+            message: 'Shop not found',
+        });
+    }
+
+    // Connect to shop database
+    const shopConn = await getShopConnection(shop.dbName);
+    const SessionReport = shopConn.model('SessionReport', sessionReportSchema);
+
+    const report = await SessionReport.findById(reportId);
+
+    if (!report) {
+        return res.status(404).json({
+            success: false,
+            message: 'Session report not found',
+        });
+    }
+
+    // Calculate remaining balance
+    const cashAmount = parseFloat(cashSubmitted) || 0;
+    const remainingBalance = report.totalAmount - cashAmount;
+
+    // Update the report
+    report.cashSubmitted = cashAmount;
+    report.remainingBalance = remainingBalance;
+    report.isReconciled = true;
+    report.reconciledAt = new Date();
+
+    await report.save();
+
+    res.json({
+        success: true,
+        message: 'Session reconciliation updated successfully',
+        report: {
+            _id: report._id,
+            shopkeeperUsername: report.shopkeeperUsername,
+            totalAmount: report.totalAmount,
+            cashSubmitted: report.cashSubmitted,
+            remainingBalance: report.remainingBalance,
+            isReconciled: report.isReconciled,
+            reconciledAt: report.reconciledAt,
+        },
+    });
+});
+
+/**
  * Delete a shop and all its data
  * DELETE /api/admin/shops/:shopId
  */
@@ -733,4 +801,5 @@ module.exports = {
     getSessionReports,
     getSessionReportDetails,
     deleteSessionReport,
+    updateSessionReconciliation,
 };

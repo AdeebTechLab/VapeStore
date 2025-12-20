@@ -61,6 +61,7 @@ router.delete('/shops/:shopId/shopkeepers/:shopkeeperId', shopkeeperController.d
 // Session reports (shopkeeper work reports)
 router.get('/shops/:shopId/session-reports', adminController.getSessionReports);
 router.get('/shops/:shopId/session-reports/:reportId', adminController.getSessionReportDetails);
+router.put('/shops/:shopId/session-reports/:reportId/reconcile', adminController.updateSessionReconciliation);
 router.delete('/shops/:shopId/session-reports/:reportId', adminController.deleteSessionReport);
 
 // Opened bottles management

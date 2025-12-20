@@ -40,6 +40,23 @@ const sessionReportSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+    // Cash reconciliation fields
+    cashSubmitted: {
+        type: Number,
+        default: 0,
+    },
+    remainingBalance: {
+        type: Number,
+        default: 0,
+    },
+    isReconciled: {
+        type: Boolean,
+        default: false,
+    },
+    reconciledAt: {
+        type: Date,
+        default: null,
+    },
     createdAt: {
         type: Date,
         default: Date.now,
