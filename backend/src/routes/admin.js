@@ -44,6 +44,9 @@ router.put(
 );
 router.delete('/shops/:shopId/products/:productId', productController.deleteProduct);
 
+// Fix floating-point values in products
+router.post('/shops/:shopId/fix-floating-points', productController.fixFloatingPoints);
+
 // Barcode
 // router.post('/shops/:shopId/products/:productId/qrcode', productController.generateProductQRCode); // Deprecated
 router.post('/shops/:shopId/scan', productController.searchByBarcode);

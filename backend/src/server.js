@@ -2,6 +2,7 @@ const app = require('./app');
 const { connectAdminDB, closeAllConnections } = require('./config/database');
 const config = require('./config/environment');
 const seedDatabase = require('./utils/seedDatabase');
+const { initSocket } = require('./services/socketService');
 
 const PORT = config.port;
 
@@ -24,6 +25,8 @@ const startServer = async () => {
             console.log(`🌍 Environment: ${config.nodeEnv}\n`);
         });
 
+        // Initialize Socket.io for real-time updates
+        initSocket(server);
         // Graceful shutdown
         process.on('SIGTERM', () => {
             console.log('\n⚠️  SIGTERM signal received: closing HTTP server');

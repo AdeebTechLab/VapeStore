@@ -34,14 +34,6 @@ const openBottle = asyncHandler(async (req, res) => {
         });
     }
 
-    // Check if already has an opened bottle
-    if (product.hasOpenedBottle) {
-        return res.status(400).json({
-            success: false,
-            message: 'This product already has an opened bottle. Finish it first before opening a new one.',
-        });
-    }
-
     // Check if there are sealed units available
     if (product.units <= 0) {
         return res.status(400).json({
@@ -151,9 +143,9 @@ const sellMl = asyncHandler(async (req, res) => {
     // Get product for price calculation
     const product = await Product.findById(openedBottle.productId);
 
-    // Calculate price for the ML sold
+    // Calculate price for the ML sold (round to avoid floating-point issues)
     // Price per ML = bottle price / bottle capacity
-    const mlPrice = pricePerMl || (product ? (product.pricePerUnit / product.mlCapacity) * mlToSell : 0);
+    const mlPrice = Math.round(pricePerMl || (product ? (product.pricePerUnit / product.mlCapacity) * mlToSell : 0));
     const totalPrice = mlPrice;
 
     // Subtract ML

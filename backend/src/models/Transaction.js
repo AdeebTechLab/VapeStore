@@ -42,6 +42,24 @@ const transactionSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    // Customer Information
+    customerName: {
+        type: String,
+        default: '',
+    },
+    customerPhone: {
+        type: String,
+        default: '',
+    },
+    customerEmail: {
+        type: String,
+        default: '',
+    },
+    paymentMethod: {
+        type: String,
+        enum: ['Cash', 'EasyPaisa', 'JazzCash', 'Card', 'Bank Transfer', 'Other'],
+        default: 'Cash',
+    },
 });
 
 // Index for faster queries

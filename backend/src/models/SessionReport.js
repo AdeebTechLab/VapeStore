@@ -30,6 +30,11 @@ const sessionReportSchema = new mongoose.Schema({
         qty: Number,
         pricePerUnit: Number,
         totalPrice: Number,
+        customerName: String,
+        customerPhone: String,
+        customerEmail: String,
+        paymentMethod: String,
+        soldAt: Date,
     }],
     totalAmount: {
         type: Number,
@@ -37,6 +42,16 @@ const sessionReportSchema = new mongoose.Schema({
         default: 0,
     },
     totalItemsSold: {
+        type: Number,
+        default: 0,
+    },
+    // Shopkeeper spendings during session
+    spendings: [{
+        reason: String,
+        amount: Number,
+        createdAt: Date,
+    }],
+    totalSpending: {
         type: Number,
         default: 0,
     },

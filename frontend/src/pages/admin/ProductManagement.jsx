@@ -11,6 +11,7 @@ const ProductManagement = () => {
     const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
     const [shopName, setShopName] = useState('Shop');
+    const [hideEmptyProducts, setHideEmptyProducts] = useState(false);
 
     // Barcode scanning state
     const [isScanning, setIsScanning] = useState(false);
@@ -502,42 +503,7 @@ const ProductManagement = () => {
                                         <p className="text-xs text-gray-500 mt-1">Total ML per bottle</p>
                                     </div>
                                 )}
-                                {/* Flavour - only for E-Liquid (REQUIRED) */}
-                                {formData.category === 'E-Liquid' && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">Flavour *</label>
-                                        <select
-                                            value={formData.flavour}
-                                            onChange={(e) => {
-                                                setFormData({ ...formData, flavour: e.target.value });
-                                                if (e.target.value !== 'Other') {
-                                                    setCustomFlavour('');
-                                                }
-                                            }}
-                                            className="input"
-                                            required
-                                        >
-                                            <option value="">Select Flavour...</option>
-                                            {commonFlavours.map((flavour) => (
-                                                <option key={flavour} value={flavour}>{flavour}</option>
-                                            ))}
-                                        </select>
-                                        {formData.flavour === 'Other' && (
-                                            <input
-                                                type="text"
-                                                value={customFlavour}
-                                                onChange={(e) => {
-                                                    setCustomFlavour(e.target.value);
-                                                    setFormData({ ...formData, flavour: e.target.value });
-                                                }}
-                                                className="input mt-2"
-                                                placeholder="Enter custom flavour name..."
-                                                required
-                                            />
-                                        )}
-                                        <p className="text-xs text-gray-500 mt-1">Same name+brand+flavour will merge stock</p>
-                                    </div>
-                                )}
+
                                 <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-2">Stock Quantity *</label>
                                     <div className="flex items-center gap-2">
@@ -671,7 +637,22 @@ const ProductManagement = () => {
 
                 {/* Products List */}
                 <div className="card">
-                    <h2 className="text-xl font-bold text-white mb-4">Products ({products.length})</h2>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold text-white">Products ({(hideEmptyProducts ? products.filter(p => p.units > 0) : products).length})</h2>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <span className="text-sm text-gray-400">Hide Empty</span>
+                            <div className="relative">
+                                <input
+                                    type="checkbox"
+                                    checked={hideEmptyProducts}
+                                    onChange={(e) => setHideEmptyProducts(e.target.checked)}
+                                    className="sr-only"
+                                />
+                                <div className={`w-10 h-5 rounded-full transition-colors ${hideEmptyProducts ? 'bg-primary' : 'bg-gray-600'}`}></div>
+                                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${hideEmptyProducts ? 'translate-x-5' : ''}`}></div>
+                            </div>
+                        </label>
+                    </div>
 
                     {products.length === 0 ? (
                         <div className="text-center py-12">
@@ -697,7 +678,7 @@ const ProductManagement = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-700">
-                                    {products.map((product) => (
+                                    {(hideEmptyProducts ? products.filter(p => p.units > 0) : products).map((product) => (
                                         <tr key={product._id} className="hover:bg-gray-700/50">
                                             <td className="px-4 py-3">
                                                 {product.imageUrl ? (

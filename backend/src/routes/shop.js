@@ -3,6 +3,7 @@ const router = express.Router();
 const productController = require('../controllers/productController');
 const salesController = require('../controllers/salesController');
 const openedBottleController = require('../controllers/openedBottleController');
+const spendingController = require('../controllers/spendingController');
 const auth = require('../middleware/auth');
 const { isShopkeeper, checkShopAccess } = require('../middleware/roleCheck');
 const { validateSell } = require('../middleware/validation');
@@ -34,5 +35,9 @@ router.post('/:shopDbName/open-bottle', openedBottleController.openBottle);
 router.get('/:shopDbName/opened-bottles', openedBottleController.getOpenedBottles);
 router.post('/:shopDbName/sell-ml', openedBottleController.sellMl);
 router.delete('/:shopDbName/opened-bottles/:bottleId', openedBottleController.deleteOpenedBottle);
+
+// Spending operations (shopkeeper can add spending during session)
+router.post('/:shopDbName/spending', spendingController.addSpending);
+router.get('/:shopDbName/spending', spendingController.getSessionSpending);
 
 module.exports = router;

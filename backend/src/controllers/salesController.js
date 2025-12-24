@@ -4,6 +4,7 @@ const transactionSchema = require('../models/Transaction');
 const sessionReportSchema = require('../models/SessionReport');
 const sessionService = require('../services/sessionService');
 const asyncHandler = require('../utils/asyncHandler');
+const { emitSaleCompleted, emitStockUpdated, emitSessionEnded, emitBottleUpdated } = require('../services/socketService');
 
 /**
  * Sell a product (shopkeeper operation)
@@ -86,7 +87,7 @@ const sellProduct = asyncHandler(async (req, res) => {
  */
 const sellBulk = asyncHandler(async (req, res) => {
     const { shopDbName } = req.params;
-    const { items } = req.body; // Array of { productId, qty, type: 'product' | 'ml', mlAmount, openedBottleId }
+    const { items, customerName, customerPhone, customerEmail, paymentMethod } = req.body;
     const sessionId = req.user.sessionId;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -117,7 +118,9 @@ const sellBulk = asyncHandler(async (req, res) => {
                 }
 
                 const product = await Product.findById(openedBottle.productId);
-                const mlPrice = product ? (product.pricePerUnit / product.mlCapacity) * item.mlAmount : 0;
+                // Use provided price from cart if available, otherwise calculate
+                const calculatedMlPrice = product ? Math.round((product.pricePerUnit / product.mlCapacity) * item.mlAmount) : 0;
+                const mlPrice = Math.round(item.price !== undefined ? item.price : calculatedMlPrice);
 
                 // Update opened bottle
                 openedBottle.remainingMl -= item.mlAmount;
@@ -147,6 +150,10 @@ const sellBulk = asyncHandler(async (req, res) => {
                     soldByShopkeeperId: req.user?.id,
                     soldBy: req.user?.username || 'Unknown',
                     sessionId,
+                    customerName: customerName || '',
+                    customerPhone: customerPhone || '',
+                    customerEmail: customerEmail || '',
+                    paymentMethod: paymentMethod || 'Cash',
                 });
                 await transaction.save();
 
@@ -157,6 +164,7 @@ const sellBulk = asyncHandler(async (req, res) => {
                 });
                 totalAmount += mlPrice;
                 sessionService.updateSession(sessionId, mlPrice);
+
 
             } else {
                 // Selling regular product
@@ -172,24 +180,30 @@ const sellBulk = asyncHandler(async (req, res) => {
                     continue;
                 }
 
-                const itemTotal = product.pricePerUnit * quantity;
+                // Use provided price from cart if available, otherwise use database price
+                const unitPrice = Math.round(item.price !== undefined ? item.price : product.pricePerUnit);
+                const itemTotal = unitPrice * quantity;
 
                 const transaction = new Transaction({
                     productId: product._id,
                     productName: product.name,
                     qty: quantity,
-                    pricePerUnit: product.pricePerUnit,
+                    pricePerUnit: unitPrice,
                     totalPrice: itemTotal,
                     soldByShopkeeperId: req.user?.id,
                     soldBy: req.user?.username || 'Unknown',
                     sessionId,
+                    customerName: customerName || '',
+                    customerPhone: customerPhone || '',
+                    customerEmail: customerEmail || '',
+                    paymentMethod: paymentMethod || 'Cash',
                 });
                 await transaction.save();
 
                 soldItems.push({
                     name: product.name,
                     qty: quantity,
-                    price: product.pricePerUnit,
+                    price: unitPrice,
                 });
                 totalAmount += itemTotal;
                 sessionService.updateSession(sessionId, itemTotal);
@@ -206,6 +220,11 @@ const sellBulk = asyncHandler(async (req, res) => {
             errors,
         });
     }
+
+    // Emit real-time sale event
+    try {
+        emitSaleCompleted(shopDbName, { soldItems, totalAmount, soldBy: req.user?.username });
+    } catch (e) { /* Socket not ready */ }
 
     res.json({
         success: true,
@@ -238,23 +257,34 @@ const logoutAndGenerateReport = asyncHandler(async (req, res) => {
     const shopConn = await getShopConnection(shopDbName);
     const Transaction = shopConn.model('Transaction', transactionSchema);
     const SessionReport = shopConn.model('SessionReport', sessionReportSchema);
+    const spendingSchema = require('../models/Spending');
+    const Spending = shopConn.model('Spending', spendingSchema);
 
     // Get all transactions for this session
     const transactions = await Transaction.find({ sessionId }).sort({ soldAt: 1 });
 
-    // Aggregate sold items
+    // Get all spendings for this session
+    const spendings = await Spending.find({ sessionId }).sort({ createdAt: 1 });
+    const totalSpending = spendings.reduce((sum, s) => sum + s.amount, 0);
+
+    // Aggregate sold items with customer info
     const soldItems = transactions.map(t => ({
         productId: t.productId,
         productName: t.productName,
         qty: t.qty,
         pricePerUnit: t.pricePerUnit,
         totalPrice: t.totalPrice,
+        customerName: t.customerName || '',
+        customerPhone: t.customerPhone || '',
+        customerEmail: t.customerEmail || '',
+        paymentMethod: t.paymentMethod || 'Cash',
+        soldAt: t.soldAt,
     }));
 
     const totalAmount = transactions.reduce((sum, t) => sum + t.totalPrice, 0);
     const totalItemsSold = transactions.reduce((sum, t) => sum + t.qty, 0);
 
-    // Create session report
+    // Create session report with spendings
     const sessionReport = new SessionReport({
         sessionId,
         shopkeeperId: req.user.id,
@@ -264,9 +294,20 @@ const logoutAndGenerateReport = asyncHandler(async (req, res) => {
         soldItems,
         totalAmount,
         totalItemsSold,
+        spendings: spendings.map(s => ({
+            reason: s.reason,
+            amount: s.amount,
+            createdAt: s.createdAt,
+        })),
+        totalSpending,
     });
 
     await sessionReport.save();
+
+    // Emit real-time session ended event
+    try {
+        emitSessionEnded(shopDbName, sessionReport);
+    } catch (e) { /* Socket not ready */ }
 
     res.json({
         success: true,

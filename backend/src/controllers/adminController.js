@@ -436,6 +436,7 @@ const downloadSalesReport = asyncHandler(async (req, res) => {
                 brand: product?.brand || '-',
                 category: product?.category || '-',
                 quantity: tx.qty,
+                costPrice: product?.costPrice || 0,
                 unitPrice: tx.pricePerUnit,
                 totalPrice: tx.totalPrice,
                 soldBy: soldByName,
@@ -464,7 +465,8 @@ const downloadSalesReport = asyncHandler(async (req, res) => {
             { header: 'Brand', key: 'brand', width: 20 },
             { header: 'Category', key: 'category', width: 15 },
             { header: 'Quantity', key: 'quantity', width: 12 },
-            { header: 'Unit Price', key: 'unitPrice', width: 15 },
+            { header: 'Cost Price', key: 'costPrice', width: 15 },
+            { header: 'Sell Price', key: 'unitPrice', width: 15 },
             { header: 'Total Price', key: 'totalPrice', width: 15 },
             { header: 'Sold By', key: 'soldBy', width: 20 },
         ];
@@ -487,6 +489,7 @@ const downloadSalesReport = asyncHandler(async (req, res) => {
                 brand: tx.brand,
                 category: tx.category,
                 quantity: tx.quantity,
+                costPrice: tx.costPrice,
                 unitPrice: tx.unitPrice,
                 totalPrice: tx.totalPrice,
                 soldBy: tx.soldBy,
@@ -506,11 +509,12 @@ const downloadSalesReport = asyncHandler(async (req, res) => {
         worksheet.addRow(['Report Period', `${from} to ${to}`]);
         worksheet.addRow(['Total Transactions', totalTransactions]);
         worksheet.addRow(['Total Items Sold', totalItems]);
-        worksheet.addRow(['Total Sales', `$${totalSales.toFixed(2)}`]);
+        worksheet.addRow(['Total Sales', `Rs ${totalSales.toFixed(0)}`]);
 
         // Format currency columns
-        worksheet.getColumn('unitPrice').numFmt = '$#,##0.00';
-        worksheet.getColumn('totalPrice').numFmt = '$#,##0.00';
+        worksheet.getColumn('costPrice').numFmt = '#,##0';
+        worksheet.getColumn('unitPrice').numFmt = '#,##0';
+        worksheet.getColumn('totalPrice').numFmt = '#,##0';
 
         const filename = `${shop.name.replace(/\s+/g, '_')}_sales_${from}_to_${to}.xlsx`;
 

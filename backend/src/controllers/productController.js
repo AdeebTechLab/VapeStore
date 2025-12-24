@@ -4,6 +4,7 @@ const productSchema = require('../models/Product');
 const asyncHandler = require('../utils/asyncHandler');
 const { generateQRCode } = require('../services/qrService');
 const { uploadToCloudinary } = require('../middleware/upload');
+const { emitProductAdded, emitProductUpdated, emitProductDeleted } = require('../services/socketService');
 
 /**
  * Get all products for a shop
@@ -132,7 +133,7 @@ const createProduct = asyncHandler(async (req, res) => {
         name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
         brand: { $regex: new RegExp(`^${(brand || '').trim()}$`, 'i') },
         category: category,
-        pricePerUnit: parseFloat(pricePerUnit),
+        pricePerUnit: Math.round(parseFloat(pricePerUnit) || 0),
     };
 
     // For E-Liquid, also match by flavour
@@ -174,6 +175,11 @@ const createProduct = asyncHandler(async (req, res) => {
 
         await existingProduct.save();
 
+        // Emit real-time product update event
+        try {
+            emitProductUpdated(shop.dbName, existingProduct);
+        } catch (e) { /* Socket not ready */ }
+
         return res.status(200).json({
             success: true,
             message: `Product already exists! Added ${addedUnits} units. New total: ${existingProduct.units} units.`,
@@ -199,8 +205,8 @@ const createProduct = asyncHandler(async (req, res) => {
         category,
         flavour: category === 'E-Liquid' ? (flavour || '') : '',
         units: parseInt(units) || 0,
-        pricePerUnit: parseFloat(pricePerUnit),
-        costPrice: parseFloat(costPrice) || 0,
+        pricePerUnit: Math.round(parseFloat(pricePerUnit) || 0),
+        costPrice: Math.round(parseFloat(costPrice) || 0),
         shortDescription: shortDescription || '',
         imageUrl,
         barcode: barcode || '',
@@ -209,6 +215,11 @@ const createProduct = asyncHandler(async (req, res) => {
     });
 
     await product.save();
+
+    // Emit real-time product added event
+    try {
+        emitProductAdded(shop.dbName, product);
+    } catch (e) { /* Socket not ready */ }
 
     res.status(201).json({
         success: true,
@@ -256,8 +267,8 @@ const updateProduct = asyncHandler(async (req, res) => {
     if (brand !== undefined) product.brand = brand;
     if (category) product.category = category;
     if (units !== undefined) product.units = parseInt(units);
-    if (pricePerUnit !== undefined) product.pricePerUnit = parseFloat(pricePerUnit);
-    if (costPrice !== undefined) product.costPrice = parseFloat(costPrice);
+    if (pricePerUnit !== undefined) product.pricePerUnit = Math.round(parseFloat(pricePerUnit) || 0);
+    if (costPrice !== undefined) product.costPrice = Math.round(parseFloat(costPrice) || 0);
     if (shortDescription !== undefined) product.shortDescription = shortDescription;
     if (barcode !== undefined) product.barcode = barcode;
 
@@ -268,6 +279,11 @@ const updateProduct = asyncHandler(async (req, res) => {
     }
 
     await product.save();
+
+    // Emit real-time product update event
+    try {
+        emitProductUpdated(shop.dbName, product);
+    } catch (e) { /* Socket not ready */ }
 
     res.json({
         success: true,
@@ -309,6 +325,11 @@ const deleteProduct = asyncHandler(async (req, res) => {
     }
 
     await Product.deleteOne({ _id: productId });
+
+    // Emit real-time product deleted event
+    try {
+        emitProductDeleted(shop.dbName, productId);
+    } catch (e) { /* Socket not ready */ }
 
     res.json({
         success: true,
@@ -403,13 +424,85 @@ const updateProductPrice = asyncHandler(async (req, res) => {
 
     // Update price
     const oldPrice = product.pricePerUnit;
-    product.pricePerUnit = pricePerUnit;
+    product.pricePerUnit = Math.round(parseFloat(pricePerUnit) || 0);
     await product.save();
 
     res.json({
         success: true,
         message: `Price updated from Rs ${oldPrice} to Rs ${pricePerUnit}`,
         product,
+    });
+});
+
+/**
+ * Fix floating-point values in all products for a shop
+ * POST /api/admin/shops/:shopId/fix-floating-points
+ */
+const fixFloatingPoints = asyncHandler(async (req, res) => {
+    const { shopId } = req.params;
+
+    // Get shop info
+    const adminConn = await connectAdminDB();
+    const Shop = adminConn.model('Shop', shopSchema);
+    const shop = await Shop.findById(shopId);
+
+    if (!shop) {
+        return res.status(404).json({
+            success: false,
+            message: 'Shop not found',
+        });
+    }
+
+    // Connect to shop database
+    const shopConn = await getShopConnection(shop.dbName);
+    const Product = shopConn.model('Product', productSchema);
+
+    // Get all products
+    const products = await Product.find({});
+    let updatedCount = 0;
+
+    for (const product of products) {
+        let needsUpdate = false;
+
+        // Round pricePerUnit
+        const roundedPrice = Math.round(product.pricePerUnit || 0);
+        if (product.pricePerUnit !== roundedPrice) {
+            product.pricePerUnit = roundedPrice;
+            needsUpdate = true;
+        }
+
+        // Round costPrice
+        const roundedCost = Math.round(product.costPrice || 0);
+        if (product.costPrice !== roundedCost) {
+            product.costPrice = roundedCost;
+            needsUpdate = true;
+        }
+
+        // Round mlCapacity
+        const roundedMl = Math.round(product.mlCapacity || 0);
+        if (product.mlCapacity !== roundedMl) {
+            product.mlCapacity = roundedMl;
+            needsUpdate = true;
+        }
+
+        // Round units (just in case)
+        const roundedUnits = Math.round(product.units || 0);
+        if (product.units !== roundedUnits) {
+            product.units = roundedUnits;
+            needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+            await product.save();
+            updatedCount++;
+        }
+    }
+
+    res.json({
+        success: true,
+        message: `Fixed ${updatedCount} products with floating-point values`,
+        totalProducts: products.length,
+        updatedProducts: updatedCount,
     });
 });
 
@@ -421,4 +514,5 @@ module.exports = {
     deleteProduct,
     searchByBarcode,
     updateProductPrice,
+    fixFloatingPoints,
 };

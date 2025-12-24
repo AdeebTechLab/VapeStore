@@ -6,6 +6,8 @@ import ProductManagement from './pages/admin/ProductManagement';
 import ShopkeeperManagement from './pages/admin/ShopkeeperManagement';
 import Reports from './pages/admin/Reports';
 import SessionReports from './pages/admin/SessionReports';
+import AllSessionsList from './pages/admin/AllSessionsList';
+import AllReconciliationList from './pages/admin/AllReconciliationList';
 import Analytics from './pages/admin/Analytics';
 import ManageShops from './pages/admin/ManageShops';
 import ShopHome from './pages/shop/Home';
@@ -97,6 +99,22 @@ function AppRoutes() {
                 element={
                     <ProtectedRoute requiredRole="admin">
                         <SessionReports />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/admin/shop/:shopId/all-sessions"
+                element={
+                    <ProtectedRoute requiredRole="admin">
+                        <AllSessionsList />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/admin/shop/:shopId/all-reconciliation"
+                element={
+                    <ProtectedRoute requiredRole="admin">
+                        <AllReconciliationList />
                     </ProtectedRoute>
                 }
             />
