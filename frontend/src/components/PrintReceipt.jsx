@@ -198,13 +198,32 @@ const PrintReceipt = ({ receipt, onClose }) => {
                         {/* Items */}
                         <div className="items">
                             {receipt.items && receipt.items.length > 0 ? (
-                                receipt.items.map((item, index) => (
-                                    <div key={index} className="item">
-                                        <span className="item-name">{item.name || item.productName || 'Unknown Product'}</span>
-                                        <span className="item-qty">×{item.qty}</span>
-                                        <span className="item-price">Rs {(item.price * item.qty).toFixed(0)}</span>
-                                    </div>
-                                ))
+                                receipt.items.map((item, index) => {
+                                    const hasDiscount = item.originalPrice && item.totalPaid && item.totalOriginal && item.totalPaid < item.totalOriginal;
+                                    return (
+                                        <div key={index} className="item" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                <span className="item-name">{item.name || item.productName || 'Unknown Product'}</span>
+                                                <span className="item-qty">×{item.qty}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666' }}>
+                                                <span>
+                                                    {hasDiscount ? (
+                                                        <>
+                                                            <span style={{ textDecoration: 'line-through', marginRight: '4px' }}>Rs {item.originalPrice}</span>
+                                                            <span style={{ color: '#16a34a' }}>→ Rs {Math.round(item.totalPaid / item.qty)}</span>
+                                                        </>
+                                                    ) : (
+                                                        <span>@ Rs {item.originalPrice || item.price}/each</span>
+                                                    )}
+                                                </span>
+                                                <span style={{ fontWeight: 600, color: '#000' }}>
+                                                    Rs {(item.totalPaid || item.price * item.qty).toFixed(0)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })
                             ) : (
                                 <p style={{ textAlign: 'center', color: '#999', padding: '10px 0' }}>No items</p>
                             )}

@@ -468,10 +468,25 @@ const Home = () => {
                 // Reload opened bottles
                 loadOpenedBottles();
 
-                // Calculate final amounts with discount
-                const subtotal = response.data.totalAmount;
-                const discountAmt = (subtotal * discountPercent) / 100 + parseFloat(discountAmount || 0);
-                const finalTotal = subtotal - discountAmt;
+                // Calculate correct receipt amounts
+                // Subtotal = sum of original prices before any cart edits or discounts
+                const originalSubtotal = cart.reduce((sum, item) => sum + (item.originalPrice || item.price) * item.qty, 0);
+                // Cart total = sum of current prices (after edit price in cart if any)
+                const cartTotal = getCartTotal();
+                // Discount applied = original subtotal - final paid amount
+                const finalPaidAmount = response.data.totalAmount; // This is what was actually paid
+                const totalDiscountApplied = originalSubtotal - finalPaidAmount;
+
+                // Prepare receipt items with both original and final prices
+                const receiptItems = cart.map(item => ({
+                    name: item.productName,
+                    productName: item.productName,
+                    qty: item.qty,
+                    originalPrice: item.originalPrice || item.price, // Original unit price
+                    price: Math.round(finalPaidAmount / cart.reduce((sum, i) => sum + i.qty, 0) * item.qty / item.qty) || item.price, // Approximate per-unit paid price
+                    totalOriginal: (item.originalPrice || item.price) * item.qty,
+                    totalPaid: Math.round((item.price * item.qty / cartTotal) * finalPaidAmount), // Proportional paid amount
+                }));
 
                 // Prepare and show receipt with customer info
                 const receipt = {
@@ -479,10 +494,10 @@ const Home = () => {
                     date: new Date(),
                     receiptNo: `RCP-${Date.now().toString(36).toUpperCase()}`,
                     cashier: user?.username || 'Staff',
-                    items: response.data.soldItems,
-                    subtotal: subtotal,
-                    discount: discountPercent > 0 || discountAmount > 0 ? { percent: discountPercent, amount: discountAmt } : null,
-                    total: finalTotal,
+                    items: receiptItems,
+                    subtotal: originalSubtotal, // Original price before discounts
+                    discount: totalDiscountApplied > 0 ? { percent: discountPercent, amount: totalDiscountApplied } : null,
+                    total: finalPaidAmount, // Final amount actually paid
                     customer: customerName ? { name: customerName, phone: customerPhone, email: customerEmail } : null,
                     paymentMethod: paymentMethod,
                 };
