@@ -71,11 +71,17 @@ const SessionReports = () => {
         joinAdminRoom();
 
         const unsubSession = onSessionEnded(() => fetchReports());
-        const unsubSale = onSaleCompleted(() => { });
+        const unsubSale = onSaleCompleted(() => fetchReports()); // Refresh on sale for live data
+
+        // Auto-refresh every 30 seconds to keep active sessions live
+        const refreshInterval = setInterval(() => {
+            fetchReports();
+        }, 30000);
 
         return () => {
             unsubSession?.();
             unsubSale?.();
+            clearInterval(refreshInterval);
         };
     }, [shopId]);
 
@@ -301,7 +307,7 @@ const SessionReports = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                                 <p className="text-lg">No session reports yet</p>
-                                <p className="text-sm mt-1">Reports will appear here when shopkeepers log out</p>
+                                <p className="text-sm mt-1">Active sessions will appear here in real-time</p>
                             </div>
                         ) : (
                             <>
@@ -309,31 +315,47 @@ const SessionReports = () => {
                                     {displayedReports.map((session) => {
                                         const remaining = session.totalAmount - (session.cashSubmitted || 0);
                                         const isFullyPaid = remaining <= 0;
+                                        const isActive = session.isActive; // Check if session is active
 
                                         return (
                                             <div
                                                 key={session._id}
-                                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer hover:shadow-lg ${selectedReport?._id === session._id
-                                                    ? 'bg-primary/10 border-primary shadow-primary/20'
-                                                    : isFullyPaid
-                                                        ? 'bg-green-900/20 border-green-600/50 hover:border-green-500'
-                                                        : 'bg-gray-800 border-gray-700 hover:border-gray-500'
+                                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer hover:shadow-lg ${isActive
+                                                    ? 'bg-green-900/30 border-green-500 shadow-green-500/20 animate-pulse-subtle'
+                                                    : selectedReport?._id === session._id
+                                                        ? 'bg-primary/10 border-primary shadow-primary/20'
+                                                        : isFullyPaid
+                                                            ? 'bg-green-900/20 border-green-600/50 hover:border-green-500'
+                                                            : 'bg-gray-800 border-gray-700 hover:border-gray-500'
                                                     }`}
-                                                onClick={() => handleViewDetails(session._id)}
+                                                onClick={() => isActive ? setSelectedReport(session) : handleViewDetails(session._id)}
                                             >
                                                 {/* Header Row */}
                                                 <div className="flex justify-between items-start mb-3">
                                                     <div className="flex items-center gap-3">
-                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${isFullyPaid ? 'bg-green-600 text-white' : 'bg-primary/20 text-primary'
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${isActive
+                                                            ? 'bg-green-500 text-white animate-pulse'
+                                                            : isFullyPaid
+                                                                ? 'bg-green-600 text-white'
+                                                                : 'bg-primary/20 text-primary'
                                                             }`}>
                                                             {session.shopkeeperUsername?.charAt(0).toUpperCase() || '?'}
                                                         </div>
                                                         <div>
                                                             <p className="font-semibold text-white">{session.shopkeeperUsername}</p>
-                                                            <p className="text-xs text-gray-400">{formatDate(session.endTime)}</p>
+                                                            <p className="text-xs text-gray-400">
+                                                                {isActive
+                                                                    ? `Started: ${formatDate(session.startTime)}`
+                                                                    : formatDate(session.endTime)}
+                                                            </p>
                                                         </div>
                                                     </div>
-                                                    {isFullyPaid ? (
+                                                    {isActive ? (
+                                                        <span className="px-3 py-1 bg-green-500 text-white text-xs rounded-full font-bold flex items-center gap-1 animate-pulse">
+                                                            <span className="w-2 h-2 bg-white rounded-full"></span>
+                                                            LIVE
+                                                        </span>
+                                                    ) : isFullyPaid ? (
                                                         <span className="px-2 py-1 bg-green-600 text-white text-xs rounded-full font-medium">
                                                             ✓ Cleared
                                                         </span>
@@ -565,124 +587,149 @@ const SessionReports = () => {
                                 );
                             })()}
 
-                            {/* Sold Items Section */}
+                            {/* Sold Items Section - Grouped by Checkout */}
                             <div className="bg-gray-800 rounded-2xl p-6">
                                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                                     <span>🛒</span>
-                                    Sold Items ({selectedReport.soldItems?.length || 0})
+                                    Sales ({(() => {
+                                        const checkoutIds = new Set(selectedReport.soldItems?.map(item => item.checkoutId).filter(Boolean));
+                                        return checkoutIds.size || (selectedReport.soldItems?.length > 0 ? 1 : 0);
+                                    })()})
                                 </h3>
 
                                 {selectedReport.soldItems?.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {selectedReport.soldItems.map((item, idx) => (
-                                            <div
-                                                key={idx}
-                                                className="bg-gray-700/50 hover:bg-gray-700 rounded-xl p-4 cursor-pointer transition-all border border-gray-600/50 hover:border-gray-500"
-                                                onClick={() => setSelectedItem(selectedItem === item ? null : item)}
-                                            >
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <div className="flex-1">
-                                                        <p className="text-white font-semibold">{item.productName}</p>
-                                                        <div className="text-sm">
-                                                            {/* Show price change if original price differs from sell price */}
-                                                            {item.originalPrice && item.originalPrice !== item.pricePerUnit ? (
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-gray-500 line-through">Rs {item.originalPrice?.toFixed(0)}</span>
-                                                                    <span className={item.pricePerUnit > item.originalPrice ? 'text-blue-400' : 'text-green-400'}>
-                                                                        → Rs {item.pricePerUnit?.toFixed(0)}
+                                    <div className="space-y-4">
+                                        {(() => {
+                                            // Group items by checkoutId
+                                            const checkoutGroups = {};
+                                            selectedReport.soldItems.forEach(item => {
+                                                const checkoutKey = item.checkoutId || 'legacy-' + (item.soldAt || 'unknown');
+                                                if (!checkoutGroups[checkoutKey]) {
+                                                    checkoutGroups[checkoutKey] = {
+                                                        items: [],
+                                                        customerName: item.customerName,
+                                                        customerPhone: item.customerPhone,
+                                                        customerEmail: item.customerEmail,
+                                                        paymentMethod: item.paymentMethod,
+                                                        soldAt: item.soldAt,
+                                                    };
+                                                }
+                                                checkoutGroups[checkoutKey].items.push(item);
+                                            });
+
+                                            // Convert to array and sort by date (most recent first)
+                                            const checkouts = Object.entries(checkoutGroups)
+                                                .sort((a, b) => new Date(b[1].soldAt) - new Date(a[1].soldAt));
+
+                                            return checkouts.map(([checkoutId, checkout], checkoutIdx) => {
+                                                // Calculate totals for this checkout
+                                                const cartTotal = checkout.items.reduce((sum, item) => {
+                                                    const basePrice = item.cartPrice || item.originalPrice || item.pricePerUnit;
+                                                    return sum + (basePrice * item.qty);
+                                                }, 0);
+                                                const paidTotal = checkout.items.reduce((sum, item) => sum + item.totalPrice, 0);
+                                                const checkoutDiscount = cartTotal - paidTotal;
+                                                const discountPercent = cartTotal > 0 ? ((checkoutDiscount / cartTotal) * 100).toFixed(1) : 0;
+
+                                                return (
+                                                    <div key={checkoutId} className="bg-gray-700/50 rounded-xl border border-gray-600/50 overflow-hidden">
+                                                        {/* Checkout Header */}
+                                                        <div className="bg-gray-700 px-4 py-3 flex justify-between items-center">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-lg">🧾</span>
+                                                                <span className="text-white font-semibold">Sale #{checkouts.length - checkoutIdx}</span>
+                                                                {checkout.soldAt && (
+                                                                    <span className="text-gray-400 text-sm">
+                                                                        • {new Date(checkout.soldAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                                                                     </span>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-gray-400">{item.qty}x @ Rs {item.pricePerUnit?.toFixed(0)}</span>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-green-400 font-bold text-lg">Rs {paidTotal.toFixed(0)}</span>
+                                                        </div>
+
+                                                        {/* Items in this checkout */}
+                                                        <div className="p-4 space-y-2">
+                                                            {checkout.items.map((item, itemIdx) => {
+                                                                const hasManualEdit = item.cartPrice && item.originalPrice && item.cartPrice !== item.originalPrice;
+                                                                const isMarkup = hasManualEdit && item.cartPrice > item.originalPrice;
+
+                                                                return (
+                                                                    <div key={itemIdx} className="flex justify-between items-center py-2 border-b border-gray-600/30 last:border-0">
+                                                                        <div>
+                                                                            <p className="text-white">{item.productName}</p>
+                                                                            <div className="text-sm">
+                                                                                {hasManualEdit ? (
+                                                                                    <span className={isMarkup ? 'text-blue-400' : 'text-green-400'}>
+                                                                                        <span className="text-gray-500 line-through mr-1">Rs {item.originalPrice?.toFixed(0)}</span>
+                                                                                        → Rs {item.cartPrice?.toFixed(0)}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-gray-400">{item.qty}x @ Rs {(item.cartPrice || item.originalPrice || item.pricePerUnit)?.toFixed(0)}</span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <span className="text-gray-300 font-medium">Rs {((item.cartPrice || item.originalPrice || item.pricePerUnit) * item.qty).toFixed(0)}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        {/* Checkout Summary */}
+                                                        <div className="bg-gray-800/50 px-4 py-3 space-y-1">
+                                                            {checkoutDiscount > 1 && (
+                                                                <>
+                                                                    <div className="flex justify-between text-sm text-gray-400">
+                                                                        <span>Cart Total</span>
+                                                                        <span>Rs {cartTotal.toFixed(0)}</span>
+                                                                    </div>
+                                                                    <div className="flex justify-between text-sm text-purple-400">
+                                                                        <span>Discount ({discountPercent}%)</span>
+                                                                        <span>-Rs {checkoutDiscount.toFixed(0)}</span>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            <div className="flex justify-between font-bold text-green-400 pt-1 border-t border-gray-600/30">
+                                                                <span>Total Paid</span>
+                                                                <span>Rs {paidTotal.toFixed(0)}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Customer & Payment Info */}
+                                                        <div className="px-4 py-3 flex justify-between items-center bg-gray-800/30">
+                                                            <span className={`text-xs px-3 py-1 rounded-full font-medium ${checkout.paymentMethod === 'Cash' ? 'bg-green-900/50 text-green-300 border border-green-700' :
+                                                                checkout.paymentMethod === 'EasyPaisa' ? 'bg-purple-900/50 text-purple-300 border border-purple-700' :
+                                                                    checkout.paymentMethod === 'JazzCash' ? 'bg-red-900/50 text-red-300 border border-red-700' :
+                                                                        'bg-blue-900/50 text-blue-300 border border-blue-700'
+                                                                }`}>
+                                                                {checkout.paymentMethod || 'Cash'}
+                                                            </span>
+                                                            {checkout.customerName && (
+                                                                <span className="text-gray-400 text-sm">👤 {checkout.customerName}</span>
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <p className="text-green-400 font-bold text-lg">Rs {item.totalPrice?.toFixed(0)}</p>
-                                                </div>
-
-                                                {/* Price Change Badge - discount or markup */}
-                                                {item.originalPrice && item.originalPrice > item.pricePerUnit && (
-                                                    <div className="mb-2 flex items-center gap-2 flex-wrap">
-                                                        <span className="text-xs px-2 py-1 rounded-full bg-orange-900/50 text-orange-300 border border-orange-700">
-                                                            🏷️ Discount: Rs {((item.originalPrice - item.pricePerUnit) * item.qty).toFixed(0)} off
-                                                        </span>
-                                                        <span className="text-xs text-orange-400">
-                                                            ({(((item.originalPrice - item.pricePerUnit) / item.originalPrice) * 100).toFixed(0)}% discount)
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                {item.originalPrice && item.pricePerUnit > item.originalPrice && (
-                                                    <div className="mb-2 flex items-center gap-2 flex-wrap">
-                                                        <span className="text-xs px-2 py-1 rounded-full bg-blue-900/50 text-blue-300 border border-blue-700">
-                                                            📈 Price Increased: +Rs {((item.pricePerUnit - item.originalPrice) * item.qty).toFixed(0)}
-                                                        </span>
-                                                        <span className="text-xs text-blue-400">
-                                                            (+{(((item.pricePerUnit - item.originalPrice) / item.originalPrice) * 100).toFixed(0)}% markup)
-                                                        </span>
-                                                    </div>
-                                                )}
-
-                                                {/* Payment Method Badge */}
-                                                <div className="flex justify-between items-center">
-                                                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${item.paymentMethod === 'Cash' ? 'bg-green-900/50 text-green-300 border border-green-700' :
-                                                        item.paymentMethod === 'EasyPaisa' ? 'bg-purple-900/50 text-purple-300 border border-purple-700' :
-                                                            item.paymentMethod === 'JazzCash' ? 'bg-red-900/50 text-red-300 border border-red-700' :
-                                                                'bg-blue-900/50 text-blue-300 border border-blue-700'
-                                                        }`}>
-                                                        {item.paymentMethod || 'Cash'}
-                                                    </span>
-                                                    {item.customerName && (
-                                                        <span className="text-gray-400 text-xs">👤 {item.customerName}</span>
-                                                    )}
-                                                </div>
-
-                                                {/* Expanded Customer Details */}
-                                                {selectedItem === item && (
-                                                    <div className="mt-3 pt-3 border-t border-gray-600 space-y-2 text-sm">
-                                                        {item.customerName && (
-                                                            <div className="flex items-center gap-2 text-gray-300">
-                                                                <span>👤</span>
-                                                                <span className="font-medium">{item.customerName}</span>
-                                                            </div>
-                                                        )}
-                                                        {item.customerPhone && (
-                                                            <div className="flex items-center gap-2 text-gray-400">
-                                                                <span>📱</span>
-                                                                <span>{item.customerPhone}</span>
-                                                            </div>
-                                                        )}
-                                                        {item.customerEmail && (
-                                                            <div className="flex items-center gap-2 text-gray-400">
-                                                                <span>📧</span>
-                                                                <span>{item.customerEmail}</span>
-                                                            </div>
-                                                        )}
-                                                        {!item.customerName && !item.customerPhone && !item.customerEmail && (
-                                                            <p className="text-gray-500 italic">No customer info recorded</p>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
+                                                );
+                                            });
+                                        })()}
                                     </div>
                                 ) : (
                                     <div className="text-center py-8 text-gray-500">
                                         <p>No items sold in this session</p>
                                     </div>
                                 )}
-                            </div>
 
-                            {/* Delete Button */}
-                            <div className="mt-6 flex justify-center">
-                                <button
-                                    onClick={() => {
-                                        handleDelete(selectedReport._id);
-                                        setSelectedReport(null);
-                                    }}
-                                    className="px-8 py-3 bg-red-600/20 hover:bg-red-600 border border-red-600 text-red-400 hover:text-white rounded-xl font-medium transition-all"
-                                >
-                                    🗑️ Delete This Report
-                                </button>
+                                {/* Delete Button */}
+                                <div className="mt-6 flex justify-center">
+                                    <button
+                                        onClick={() => {
+                                            handleDelete(selectedReport._id);
+                                            setSelectedReport(null);
+                                        }}
+                                        className="px-8 py-3 bg-red-600/20 hover:bg-red-600 border border-red-600 text-red-400 hover:text-white rounded-xl font-medium transition-all"
+                                    >
+                                        🗑️ Delete This Report
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -855,3 +902,4 @@ const SessionReports = () => {
 };
 
 export default SessionReports;
+

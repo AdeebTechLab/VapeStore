@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
 
 const investmentSchema = new mongoose.Schema({
-    // Type of investment: 'product_add', 'restock', 'adjustment'
+    // Type of investment: 'product_add', 'restock', 'adjustment', 'deduction'
     type: {
         type: String,
-        enum: ['product_add', 'restock', 'adjustment'],
+        enum: ['product_add', 'restock', 'adjustment', 'deduction'],
         required: true,
     },
     productId: {

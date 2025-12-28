@@ -198,32 +198,72 @@ const PrintReceipt = ({ receipt, onClose }) => {
                         {/* Items */}
                         <div className="items">
                             {receipt.items && receipt.items.length > 0 ? (
-                                receipt.items.map((item, index) => {
-                                    const hasDiscount = item.originalPrice && item.totalPaid && item.totalOriginal && item.totalPaid < item.totalOriginal;
-                                    return (
-                                        <div key={index} className="item" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                <span className="item-name">{item.name || item.productName || 'Unknown Product'}</span>
-                                                <span className="item-qty">×{item.qty}</span>
+                                receipt.items.map((item, index) => (
+                                    <div
+                                        key={index}
+                                        style={{
+                                            border: '1px solid #ddd',
+                                            borderRadius: '6px',
+                                            padding: '8px 10px',
+                                            marginBottom: '8px',
+                                            backgroundColor: item.hasDiscount ? '#f0fdf4' : '#fff'
+                                        }}
+                                    >
+                                        {/* Product Name & Qty */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                            <span style={{ fontWeight: 600, fontSize: '12px', color: '#1a1a1a' }}>
+                                                {item.name || item.productName || 'Product'}
+                                            </span>
+                                            <span style={{
+                                                backgroundColor: '#e5e7eb',
+                                                padding: '2px 8px',
+                                                borderRadius: '12px',
+                                                fontSize: '10px',
+                                                fontWeight: 600
+                                            }}>
+                                                ×{item.qty}
+                                            </span>
+                                        </div>
+
+                                        {/* Price Details */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
+                                            <div>
+                                                {item.hasDiscount ? (
+                                                    <>
+                                                        <span style={{ textDecoration: 'line-through', color: '#9ca3af', marginRight: '6px' }}>
+                                                            Rs {item.originalPrice}
+                                                        </span>
+                                                        <span style={{ color: '#16a34a', fontWeight: 600 }}>
+                                                            Rs {item.cartPrice}/each
+                                                        </span>
+                                                    </>
+                                                ) : (
+                                                    <span style={{ color: '#666' }}>
+                                                        Rs {item.cartPrice}/each
+                                                    </span>
+                                                )}
                                             </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666' }}>
-                                                <span>
-                                                    {hasDiscount ? (
-                                                        <>
-                                                            <span style={{ textDecoration: 'line-through', marginRight: '4px' }}>Rs {item.originalPrice}</span>
-                                                            <span style={{ color: '#16a34a' }}>→ Rs {Math.round(item.totalPaid / item.qty)}</span>
-                                                        </>
-                                                    ) : (
-                                                        <span>@ Rs {item.originalPrice || item.price}/each</span>
-                                                    )}
-                                                </span>
-                                                <span style={{ fontWeight: 600, color: '#000' }}>
-                                                    Rs {(item.totalPaid || item.price * item.qty).toFixed(0)}
-                                                </span>
+                                            <div style={{ fontWeight: 700, fontSize: '13px', color: '#000' }}>
+                                                Rs {item.cartTotal?.toFixed(0) || '0'}
                                             </div>
                                         </div>
-                                    );
-                                })
+
+                                        {/* Savings Badge */}
+                                        {item.hasDiscount && item.savedAmount > 0 && (
+                                            <div style={{
+                                                marginTop: '4px',
+                                                fontSize: '9px',
+                                                color: '#16a34a',
+                                                backgroundColor: '#dcfce7',
+                                                padding: '2px 6px',
+                                                borderRadius: '4px',
+                                                display: 'inline-block'
+                                            }}>
+                                                💰 Saved: Rs {item.savedAmount.toFixed(0)}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
                             ) : (
                                 <p style={{ textAlign: 'center', color: '#999', padding: '10px 0' }}>No items</p>
                             )}

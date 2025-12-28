@@ -31,6 +31,10 @@ const transactionSchema = new mongoose.Schema({
         type: Number,
         default: 0, // Original price before discount/edit (0 means no discount applied)
     },
+    cartPrice: {
+        type: Number,
+        default: 0, // Price after manual cart edit, before checkout discount (0 means no manual edit)
+    },
     soldByShopkeeperId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Shopkeeper',
@@ -45,6 +49,11 @@ const transactionSchema = new mongoose.Schema({
         type: String,
         required: true,
         index: true,
+    },
+    checkoutId: {
+        type: String,
+        required: true,
+        index: true, // Index for efficient grouping
     },
     soldAt: {
         type: Date,

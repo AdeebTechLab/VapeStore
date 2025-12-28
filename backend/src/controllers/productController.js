@@ -330,6 +330,7 @@ const updateProduct = asyncHandler(async (req, res) => {
  */
 const deleteProduct = asyncHandler(async (req, res) => {
     const { shopId, productId } = req.params;
+    const deductFromInvestment = req.query.deductInvestment === 'true';
 
     // Get shop info
     const adminConn = await connectAdminDB();
@@ -356,6 +357,27 @@ const deleteProduct = asyncHandler(async (req, res) => {
         });
     }
 
+    // If user wants to deduct from investment, create a negative investment record
+    let investmentDeducted = 0;
+    if (deductFromInvestment && product.costPrice && product.units) {
+        const investmentSchema = require('../models/Investment');
+        const Investment = shopConn.model('Investment', investmentSchema);
+
+        investmentDeducted = product.costPrice * product.units;
+
+        // Create a negative investment (deduction) record
+        await Investment.create({
+            type: 'deduction',
+            productId: product._id,
+            productName: product.name,
+            units: -product.units, // Negative to indicate removal
+            costPrice: product.costPrice,
+            totalAmount: -investmentDeducted, // Negative to subtract from total
+            createdBy: req.user?.username || 'Admin',
+            note: `Product deleted - ${product.units} units removed from inventory`,
+        });
+    }
+
     await Product.deleteOne({ _id: productId });
 
     // Emit real-time product deleted event
@@ -366,6 +388,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
     res.json({
         success: true,
         message: 'Product deleted successfully',
+        investmentDeducted,
     });
 });
 

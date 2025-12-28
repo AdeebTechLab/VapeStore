@@ -437,8 +437,9 @@ const Home = () => {
                     productId: item.productId,
                     productName: item.productName,
                     qty: item.qty,
-                    price: discountedPrice > 0 ? discountedPrice : item.price, // Use discounted price
-                    originalPrice: item.originalPrice || item.price, // Send original product price (stored when added to cart)
+                    price: discountedPrice > 0 ? discountedPrice : item.price, // Final price after checkout discount
+                    originalPrice: item.originalPrice || item.price, // Original product price when added to cart
+                    cartPrice: item.price, // Price after manual edit (before checkout discount)
                     type: item.type,
                     mlAmount: item.mlAmount,
                     openedBottleId: item.openedBottleId,
@@ -469,24 +470,35 @@ const Home = () => {
                 loadOpenedBottles();
 
                 // Calculate correct receipt amounts
-                // Subtotal = sum of original prices before any cart edits or discounts
-                const originalSubtotal = cart.reduce((sum, item) => sum + (item.originalPrice || item.price) * item.qty, 0);
-                // Cart total = sum of current prices (after edit price in cart if any)
-                const cartTotal = getCartTotal();
-                // Discount applied = original subtotal - final paid amount
-                const finalPaidAmount = response.data.totalAmount; // This is what was actually paid
-                const totalDiscountApplied = originalSubtotal - finalPaidAmount;
+                // Subtotal = cart total BEFORE checkout discount (what user sees in cart)
+                const cartSubtotal = getCartTotal(); // Uses item.price * qty for all items
+                // Final paid amount from backend (after checkout discount applied)
+                const finalPaidAmount = response.data.totalAmount;
+                // Checkout discount applied = cart subtotal - final paid
+                const checkoutDiscountApplied = cartSubtotal - finalPaidAmount;
 
-                // Prepare receipt items with both original and final prices
-                const receiptItems = cart.map(item => ({
-                    name: item.productName,
-                    productName: item.productName,
-                    qty: item.qty,
-                    originalPrice: item.originalPrice || item.price, // Original unit price
-                    price: Math.round(finalPaidAmount / cart.reduce((sum, i) => sum + i.qty, 0) * item.qty / item.qty) || item.price, // Approximate per-unit paid price
-                    totalOriginal: (item.originalPrice || item.price) * item.qty,
-                    totalPaid: Math.round((item.price * item.qty / cartTotal) * finalPaidAmount), // Proportional paid amount
-                }));
+                // Prepare receipt items - only show per-item discount if price was MANUALLY edited in cart
+                const receiptItems = cart.map(item => {
+                    const cartUnitPrice = item.price; // Current price in cart
+                    const originalUnitPrice = item.originalPrice || item.price; // Original product price
+                    const cartItemTotal = cartUnitPrice * item.qty;
+
+                    // Check if user manually edited this item's price in cart
+                    // (originalPrice is set when item added, price changes when user edits)
+                    const wasManuallyEdited = originalUnitPrice !== cartUnitPrice;
+
+                    return {
+                        name: item.productName,
+                        productName: item.productName,
+                        qty: item.qty,
+                        originalPrice: originalUnitPrice, // Original product price
+                        cartPrice: cartUnitPrice, // Current price in cart (may be edited)
+                        cartTotal: cartItemTotal, // Cart total for this item
+                        paidTotal: cartItemTotal, // For display, show cart total (checkout discount shown separately)
+                        hasDiscount: wasManuallyEdited, // Only true if manually edited, NOT from checkout discount
+                        savedAmount: wasManuallyEdited ? (originalUnitPrice - cartUnitPrice) * item.qty : 0,
+                    };
+                });
 
                 // Prepare and show receipt with customer info
                 const receipt = {
@@ -495,9 +507,9 @@ const Home = () => {
                     receiptNo: `RCP-${Date.now().toString(36).toUpperCase()}`,
                     cashier: user?.username || 'Staff',
                     items: receiptItems,
-                    subtotal: originalSubtotal, // Original price before discounts
-                    discount: totalDiscountApplied > 0 ? { percent: discountPercent, amount: totalDiscountApplied } : null,
-                    total: finalPaidAmount, // Final amount actually paid
+                    subtotal: cartSubtotal, // Cart total before checkout discount
+                    discount: checkoutDiscountApplied > 0 ? { percent: discountPercent, amount: checkoutDiscountApplied } : null,
+                    total: finalPaidAmount, // Final amount paid
                     customer: customerName ? { name: customerName, phone: customerPhone, email: customerEmail } : null,
                     paymentMethod: paymentMethod,
                 };

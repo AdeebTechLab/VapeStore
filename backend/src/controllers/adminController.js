@@ -634,10 +634,17 @@ const getSessionReports = asyncHandler(async (req, res) => {
     // Connect to shop database
     const shopConn = await getShopConnection(shop.dbName);
     const SessionReport = shopConn.model('SessionReport', sessionReportSchema);
+    const Transaction = shopConn.model('Transaction', transactionSchema);
+    const spendingSchema = require('../models/Spending');
+    const Spending = shopConn.model('Spending', spendingSchema);
+
+    // Import sessionService to get active sessions
+    const sessionService = require('../services/sessionService');
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const [reports, totalCount] = await Promise.all([
+    // Get completed session reports
+    const [completedReports, totalCount] = await Promise.all([
         SessionReport.find()
             .sort({ createdAt: -1 })
             .skip(skip)
@@ -645,18 +652,86 @@ const getSessionReports = asyncHandler(async (req, res) => {
         SessionReport.countDocuments(),
     ]);
 
+    // Get active sessions with live data
+    const activeSessions = [];
+
+    // Get unique sessionIds from recent transactions (last 24 hours) that might be active
+    const recentTransactions = await Transaction.find({
+        soldAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    }).distinct('sessionId');
+
+    // Check each sessionId to see if session is still active
+    for (const sessionId of recentTransactions) {
+        const session = sessionService.getSession(sessionId);
+        if (session) {
+            // This is an active session - get its transactions and spendings
+            const transactions = await Transaction.find({ sessionId }).sort({ soldAt: 1 });
+            const spendings = await Spending.find({ sessionId }).sort({ createdAt: 1 });
+            const totalSpending = spendings.reduce((sum, s) => sum + s.amount, 0);
+
+            // Map transactions to soldItems format
+            const soldItems = transactions.map(t => ({
+                productId: t.productId,
+                productName: t.productName,
+                qty: t.qty,
+                pricePerUnit: t.pricePerUnit,
+                totalPrice: t.totalPrice,
+                originalPrice: t.originalPrice || t.pricePerUnit,
+                cartPrice: t.cartPrice || t.pricePerUnit,
+                checkoutId: t.checkoutId || '',
+                customerName: t.customerName || '',
+                customerPhone: t.customerPhone || '',
+                customerEmail: t.customerEmail || '',
+                paymentMethod: t.paymentMethod || 'Cash',
+                soldAt: t.soldAt,
+            }));
+
+            const totalAmount = transactions.reduce((sum, t) => sum + t.totalPrice, 0);
+            const totalItemsSold = transactions.reduce((sum, t) => sum + t.qty, 0);
+
+            activeSessions.push({
+                _id: sessionId,
+                sessionId,
+                shopkeeperId: session.shopkeeperId,
+                shopkeeperUsername: session.shopkeeperUsername,
+                startTime: session.startTime,
+                endTime: null,
+                isActive: true, // Mark as active session
+                soldItems,
+                totalAmount,
+                totalItemsSold,
+                spendings: spendings.map(s => ({
+                    reason: s.reason,
+                    amount: s.amount,
+                    createdAt: s.createdAt,
+                })),
+                totalSpending,
+            });
+        }
+    }
+
+    // Also check for active sessions without transactions yet
+    // (shopkeeper just logged in but hasn't made any sales)
+    // We need to get all active sessions from the in-memory store
+    // Since we can't directly access the Map, we'll check known shopkeepers
+    // (This is a limitation - in production, use Redis)
+
+    // Combine active sessions (at top) with completed reports
+    const allReports = [...activeSessions, ...completedReports];
+
     res.json({
         success: true,
         shop: {
             id: shop._id,
             name: shop.name,
         },
-        reports,
+        reports: allReports,
+        activeSessions: activeSessions.length, // Count of active sessions
         pagination: {
             page: parseInt(page),
             limit: parseInt(limit),
-            totalCount,
-            totalPages: Math.ceil(totalCount / parseInt(limit)),
+            totalCount: totalCount + activeSessions.length,
+            totalPages: Math.ceil((totalCount + activeSessions.length) / parseInt(limit)),
         },
     });
 });

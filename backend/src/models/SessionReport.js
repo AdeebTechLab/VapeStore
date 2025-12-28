@@ -31,6 +31,8 @@ const sessionReportSchema = new mongoose.Schema({
         pricePerUnit: Number,
         totalPrice: Number,
         originalPrice: Number, // Original price before discount/edit
+        cartPrice: Number, // Price after manual cart edit, before checkout discount
+        checkoutId: String, // Groups items from same checkout
         customerName: String,
         customerPhone: String,
         customerEmail: String,

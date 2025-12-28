@@ -394,12 +394,33 @@ const ProductManagement = () => {
     };
 
     const handleDelete = async (productId) => {
+        // First confirm deletion
         if (!confirm('Are you sure you want to delete this product?')) return;
 
+        // Find the product to show its cost info
+        const product = products.find(p => p._id === productId);
+        const investmentValue = (product?.costPrice || 0) * (product?.units || 0);
+
+        // Ask about investment deduction
+        let deductFromInvestment = false;
+        if (investmentValue > 0) {
+            deductFromInvestment = confirm(
+                `This product has an investment value of Rs ${investmentValue.toLocaleString()}\n\n` +
+                `(${product?.units || 0} units × Rs ${product?.costPrice || 0} cost price)\n\n` +
+                `Click OK to also SUBTRACT this from total investment\n` +
+                `Click Cancel to keep investment unchanged`
+            );
+        }
+
         try {
-            await api.delete(`/admin/shops/${shopId}/products/${productId}`);
+            await api.delete(`/admin/shops/${shopId}/products/${productId}?deductInvestment=${deductFromInvestment}`);
             setProducts(products.filter(p => p._id !== productId));
-            alert('Product deleted successfully!');
+
+            if (deductFromInvestment && investmentValue > 0) {
+                alert(`Product deleted and Rs ${investmentValue.toLocaleString()} subtracted from investment!`);
+            } else {
+                alert('Product deleted successfully!');
+            }
         } catch (error) {
             alert('Failed to delete product');
         }
