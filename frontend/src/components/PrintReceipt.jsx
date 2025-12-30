@@ -237,14 +237,23 @@ const PrintReceipt = ({ receipt, onClose }) => {
                                                             Rs {item.cartPrice}/each
                                                         </span>
                                                     </>
+                                                ) : item.paidTotal && item.paidTotal < item.cartTotal ? (
+                                                    <>
+                                                        <span style={{ textDecoration: 'line-through', color: '#9ca3af', marginRight: '6px' }}>
+                                                            Rs {item.cartPrice}/each
+                                                        </span>
+                                                        <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                                                            Rs {Math.round(item.paidTotal / item.qty)}/each
+                                                        </span>
+                                                    </>
                                                 ) : (
                                                     <span style={{ color: '#666' }}>
                                                         Rs {item.cartPrice}/each
                                                     </span>
                                                 )}
                                             </div>
-                                            <div style={{ fontWeight: 700, fontSize: '13px', color: '#000' }}>
-                                                Rs {item.cartTotal?.toFixed(0) || '0'}
+                                            <div style={{ fontWeight: 700, fontSize: '13px', color: item.paidTotal && item.paidTotal < item.cartTotal ? '#dc2626' : '#000' }}>
+                                                Rs {(item.paidTotal || item.cartTotal)?.toFixed(0) || '0'}
                                             </div>
                                         </div>
 

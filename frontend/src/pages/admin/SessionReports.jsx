@@ -653,24 +653,36 @@ const SessionReports = () => {
                                                                 const hasManualEdit = item.cartPrice && item.originalPrice && item.cartPrice !== item.originalPrice;
                                                                 const isMarkup = hasManualEdit && item.cartPrice > item.originalPrice;
 
-                                                                return (
-                                                                    <div key={itemIdx} className="flex justify-between items-center py-2 border-b border-gray-600/30 last:border-0">
-                                                                        <div>
-                                                                            <p className="text-white">{item.productName}</p>
-                                                                            <div className="text-sm">
-                                                                                {hasManualEdit ? (
-                                                                                    <span className={isMarkup ? 'text-blue-400' : 'text-green-400'}>
-                                                                                        <span className="text-gray-500 line-through mr-1">Rs {item.originalPrice?.toFixed(0)}</span>
-                                                                                        → Rs {item.cartPrice?.toFixed(0)}
-                                                                                    </span>
-                                                                                ) : (
-                                                                                    <span className="text-gray-400">{item.qty}x @ Rs {(item.cartPrice || item.originalPrice || item.pricePerUnit)?.toFixed(0)}</span>
-                                                                                )}
+                                                                return (() => {
+                                                                    // Calculate actual paid unit price
+                                                                    const paidUnitPrice = item.totalPrice ? (item.totalPrice / item.qty) : (item.pricePerUnit || item.cartPrice || item.originalPrice);
+                                                                    const cartUnitPrice = item.cartPrice || item.originalPrice || item.pricePerUnit;
+                                                                    const hasCheckoutDiscount = paidUnitPrice < cartUnitPrice;
+
+                                                                    return (
+                                                                        <div key={itemIdx} className="flex justify-between items-center py-2 border-b border-gray-600/30 last:border-0">
+                                                                            <div>
+                                                                                <p className="text-white">{item.productName}</p>
+                                                                                <div className="text-sm">
+                                                                                    {hasManualEdit ? (
+                                                                                        <span className={isMarkup ? 'text-blue-400' : 'text-green-400'}>
+                                                                                            <span className="text-gray-500 line-through mr-1">Rs {item.originalPrice?.toFixed(0)}</span>
+                                                                                            → Rs {item.cartPrice?.toFixed(0)}
+                                                                                        </span>
+                                                                                    ) : hasCheckoutDiscount ? (
+                                                                                        <span className="text-purple-400">
+                                                                                            <span className="text-gray-500 line-through mr-1">Rs {cartUnitPrice?.toFixed(0)}</span>
+                                                                                            → Rs {paidUnitPrice?.toFixed(0)} × {item.qty}
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span className="text-gray-400">{item.qty}x @ Rs {paidUnitPrice?.toFixed(0)}</span>
+                                                                                    )}
+                                                                                </div>
                                                                             </div>
+                                                                            <span className={`font-medium ${hasCheckoutDiscount ? 'text-purple-400' : 'text-gray-300'}`}>Rs {(item.totalPrice || (cartUnitPrice * item.qty)).toFixed(0)}</span>
                                                                         </div>
-                                                                        <span className="text-gray-300 font-medium">Rs {((item.cartPrice || item.originalPrice || item.pricePerUnit) * item.qty).toFixed(0)}</span>
-                                                                    </div>
-                                                                );
+                                                                    );
+                                                                })();
                                                             })}
                                                         </div>
 

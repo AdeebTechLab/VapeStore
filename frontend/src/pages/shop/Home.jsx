@@ -437,7 +437,7 @@ const Home = () => {
                     productId: item.productId,
                     productName: item.productName,
                     qty: item.qty,
-                    price: discountedPrice > 0 ? discountedPrice : item.price, // Final price after checkout discount
+                    price: discountRatio > 0 ? discountedPrice : item.price, // Final price after checkout discount (0 for 100% discount)
                     originalPrice: item.originalPrice || item.price, // Original product price when added to cart
                     cartPrice: item.price, // Price after manual edit (before checkout discount)
                     type: item.type,
@@ -477,11 +477,17 @@ const Home = () => {
                 // Checkout discount applied = cart subtotal - final paid
                 const checkoutDiscountApplied = cartSubtotal - finalPaidAmount;
 
-                // Prepare receipt items - only show per-item discount if price was MANUALLY edited in cart
+                // Prepare receipt items - calculate proportional discount for each item
+                const discountRatio = cartSubtotal > 0 ? checkoutDiscountApplied / cartSubtotal : 0;
+
                 const receiptItems = cart.map(item => {
                     const cartUnitPrice = item.price; // Current price in cart
                     const originalUnitPrice = item.originalPrice || item.price; // Original product price
                     const cartItemTotal = cartUnitPrice * item.qty;
+
+                    // Calculate actual paid amount for this item (after checkout discount)
+                    const itemDiscount = cartItemTotal * discountRatio;
+                    const paidItemTotal = cartItemTotal - itemDiscount;
 
                     // Check if user manually edited this item's price in cart
                     // (originalPrice is set when item added, price changes when user edits)
@@ -494,7 +500,7 @@ const Home = () => {
                         originalPrice: originalUnitPrice, // Original product price
                         cartPrice: cartUnitPrice, // Current price in cart (may be edited)
                         cartTotal: cartItemTotal, // Cart total for this item
-                        paidTotal: cartItemTotal, // For display, show cart total (checkout discount shown separately)
+                        paidTotal: paidItemTotal, // Actual paid amount after checkout discount
                         hasDiscount: wasManuallyEdited, // Only true if manually edited, NOT from checkout discount
                         savedAmount: wasManuallyEdited ? (originalUnitPrice - cartUnitPrice) * item.qty : 0,
                     };
@@ -834,8 +840,8 @@ const Home = () => {
                             <div
                                 key={product._id}
                                 className={`bg-gray-800 rounded-lg p-2 border-2 transition-all ${product.units <= 3
-                                        ? 'border-red-500 shadow-lg shadow-red-500/30'
-                                        : 'border-gray-700 hover:border-primary'
+                                    ? 'border-red-500 shadow-lg shadow-red-500/30'
+                                    : 'border-gray-700 hover:border-primary'
                                     }`}
                             >
                                 {/* Product Image - Smaller */}
