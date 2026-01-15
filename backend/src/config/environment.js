@@ -1,8 +1,8 @@
 require('dotenv').config();
 
 const config = {
-  adminUsername: process.env.ADMIN_USERNAME || 'admin',
-  adminPassword: process.env.ADMIN_PASSWORD || 'vapeshop121!',
+  adminUsername: process.env.ADMIN_USERNAME || 'shani',
+  adminPassword: process.env.ADMIN_PASSWORD || 'shani933',
   jwtSecret: process.env.JWT_SECRET || 'default_secret_change_this',
   mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017',
   shopDbPrefix: process.env.SHOP_DB_PREFIX || 'shop_db_',

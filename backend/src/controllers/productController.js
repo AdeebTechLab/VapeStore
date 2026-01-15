@@ -284,6 +284,7 @@ const updateProduct = asyncHandler(async (req, res) => {
     // Connect to shop database
     const shopConn = await getShopConnection(shop.dbName);
     const Product = shopConn.model('Product', productSchema);
+    const Investment = shopConn.model('Investment', investmentSchema);
 
     const product = await Product.findById(productId);
 
@@ -293,6 +294,12 @@ const updateProduct = asyncHandler(async (req, res) => {
             message: 'Product not found',
         });
     }
+
+    // Track stock change for investment adjustment
+    const oldUnits = product.units;
+    const newUnits = units !== undefined ? parseInt(units) : oldUnits;
+    const unitsDiff = newUnits - oldUnits;
+    const productCostPrice = costPrice !== undefined ? Math.round(parseFloat(costPrice) || 0) : (product.costPrice || 0);
 
     // Update fields
     if (name) product.name = name;
@@ -311,6 +318,35 @@ const updateProduct = asyncHandler(async (req, res) => {
     }
 
     await product.save();
+
+    // Adjust investment based on stock change
+    if (unitsDiff !== 0 && productCostPrice > 0) {
+        const investmentAmount = Math.abs(unitsDiff) * productCostPrice;
+
+        if (unitsDiff > 0) {
+            // Stock increased - add to investment (restock)
+            await new Investment({
+                type: 'restock',
+                productId: product._id,
+                productName: product.name,
+                units: unitsDiff,
+                costPrice: productCostPrice,
+                totalAmount: investmentAmount,
+                note: `Stock increased by ${unitsDiff} units via admin panel`,
+            }).save();
+        } else {
+            // Stock decreased - deduct from investment
+            await new Investment({
+                type: 'deduction',
+                productId: product._id,
+                productName: product.name,
+                units: Math.abs(unitsDiff),
+                costPrice: productCostPrice,
+                totalAmount: -investmentAmount, // negative for deduction
+                note: `Stock decreased by ${Math.abs(unitsDiff)} units via admin panel`,
+            }).save();
+        }
+    }
 
     // Emit real-time product update event
     try {

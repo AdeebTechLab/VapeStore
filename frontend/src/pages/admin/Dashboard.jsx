@@ -37,6 +37,7 @@ const Dashboard = () => {
         const saved = localStorage.getItem('dismissedLowStockNotifications');
         return saved ? JSON.parse(saved) : {};
     });
+    const [expandedAlerts, setExpandedAlerts] = useState({}); // { shopId: true/false } - show all alerts for shop
 
     // Barcode scanning state
     const [isScanning, setIsScanning] = useState(false);
@@ -360,46 +361,70 @@ const Dashboard = () => {
                                     </div>
 
                                     {/* Low Stock Notifications */}
-                                    {getActiveNotifications(shop._id).length > 0 && (
-                                        <div className="mt-3 p-3 bg-red-900/20 border border-red-500 rounded-lg">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <span className="text-red-400 text-lg">⚠️</span>
-                                                <span className="text-red-400 font-semibold text-sm">Low Stock Alert</span>
-                                            </div>
-                                            <div className="space-y-2">
-                                                {getActiveNotifications(shop._id).map(product => (
-                                                    <div
-                                                        key={product._id}
-                                                        className="flex items-center justify-between bg-red-900/30 px-3 py-2 rounded border border-red-600/50"
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${product.units === 0
-                                                                ? 'bg-red-600 text-white'
-                                                                : product.units === 1
-                                                                    ? 'bg-orange-600 text-white'
-                                                                    : 'bg-yellow-600 text-white'
-                                                                }`}>
-                                                                {product.units} left
-                                                            </span>
-                                                            <span className="text-white text-sm">{product.name}</span>
-                                                        </div>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                dismissNotification(shop._id, product._id);
-                                                            }}
-                                                            className="text-gray-400 hover:text-white p-1"
-                                                            title="Dismiss notification"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                            </svg>
-                                                        </button>
+                                    {(() => {
+                                        const allNotifications = getActiveNotifications(shop._id);
+                                        const isExpanded = expandedAlerts[shop._id];
+                                        const displayLimit = 3;
+                                        const displayedNotifications = isExpanded ? allNotifications : allNotifications.slice(0, displayLimit);
+                                        const hasMore = allNotifications.length > displayLimit;
+
+                                        return allNotifications.length > 0 && (
+                                            <div className="mt-3 p-3 bg-red-900/20 border border-red-500 rounded-lg">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-red-400 text-lg">⚠️</span>
+                                                        <span className="text-red-400 font-semibold text-sm">Low Stock Alert ({allNotifications.length})</span>
                                                     </div>
-                                                ))}
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {displayedNotifications.map(product => (
+                                                        <div
+                                                            key={product._id}
+                                                            className="flex items-center justify-between bg-red-900/30 px-3 py-2 rounded border border-red-600/50"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${product.units === 0
+                                                                    ? 'bg-red-600 text-white'
+                                                                    : product.units === 1
+                                                                        ? 'bg-orange-600 text-white'
+                                                                        : 'bg-yellow-600 text-white'
+                                                                    }`}>
+                                                                    {product.units} left
+                                                                </span>
+                                                                <span className="text-white text-sm">{product.name}</span>
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    dismissNotification(shop._id, product._id);
+                                                                }}
+                                                                className="text-gray-400 hover:text-white p-1"
+                                                                title="Dismiss notification"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                {hasMore && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setExpandedAlerts(prev => ({
+                                                                ...prev,
+                                                                [shop._id]: !prev[shop._id]
+                                                            }));
+                                                        }}
+                                                        className="mt-2 w-full text-center py-1.5 text-sm text-red-300 hover:text-white bg-red-900/30 hover:bg-red-900/50 rounded transition-colors"
+                                                    >
+                                                        {isExpanded ? `Show Less ▲` : `Show All ${allNotifications.length} Alerts ▼`}
+                                                    </button>
+                                                )}
                                             </div>
-                                        </div>
-                                    )}
+                                        );
+                                    })()}
                                 </div>
                             );
                         })}

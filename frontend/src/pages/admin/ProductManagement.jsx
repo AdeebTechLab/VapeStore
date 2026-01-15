@@ -13,6 +13,21 @@ const ProductManagement = () => {
     const [shopName, setShopName] = useState('Shop');
     const [hideEmptyProducts, setHideEmptyProducts] = useState(false);
 
+    // Edit product modal state
+    const [editingProduct, setEditingProduct] = useState(null);
+    const [editFormData, setEditFormData] = useState({
+        name: '',
+        brand: '',
+        category: 'Device',
+        pricePerUnit: '',
+        costPrice: '',
+        shortDescription: '',
+        barcode: '',
+        mlCapacity: '',
+        flavour: '',
+    });
+    const [updatingStock, setUpdatingStock] = useState(null); // Track which product is being updated
+
     // Barcode scanning state
     const [isScanning, setIsScanning] = useState(false);
     const scanBufferRef = useRef('');
@@ -426,6 +441,62 @@ const ProductManagement = () => {
         }
     };
 
+    // Adjust stock directly with +/- buttons
+    const handleStockChange = async (productId, change) => {
+        setUpdatingStock(productId);
+        try {
+            const product = products.find(p => p._id === productId);
+            const newUnits = Math.max(0, product.units + change);
+
+            await api.put(`/admin/shops/${shopId}/products/${productId}`, {
+                units: newUnits
+            });
+
+            // Update local state
+            setProducts(products.map(p =>
+                p._id === productId ? { ...p, units: newUnits } : p
+            ));
+        } catch (error) {
+            alert('Failed to update stock');
+        }
+        setUpdatingStock(null);
+    };
+
+    // Open edit modal
+    const handleEditProduct = (product) => {
+        setEditingProduct(product);
+        setEditFormData({
+            name: product.name || '',
+            brand: product.brand || '',
+            category: product.category || 'Device',
+            pricePerUnit: product.pricePerUnit || '',
+            costPrice: product.costPrice || '',
+            shortDescription: product.shortDescription || '',
+            barcode: product.barcode || '',
+            mlCapacity: product.mlCapacity || '',
+            flavour: product.flavour || '',
+        });
+    };
+
+    // Save edited product
+    const handleUpdateProduct = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await api.put(`/admin/shops/${shopId}/products/${editingProduct._id}`, editFormData);
+
+            if (response.data.success) {
+                // Update local state
+                setProducts(products.map(p =>
+                    p._id === editingProduct._id ? { ...p, ...editFormData, pricePerUnit: parseFloat(editFormData.pricePerUnit), costPrice: parseFloat(editFormData.costPrice) || 0 } : p
+                ));
+                setEditingProduct(null);
+                alert('Product updated successfully!');
+            }
+        } catch (error) {
+            alert(error.response?.data?.message || 'Failed to update product');
+        }
+    };
+
     if (loading) {
         return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">Loading...</div>;
     }
@@ -721,8 +792,8 @@ const ProductManagement = () => {
                                         <tr
                                             key={product._id}
                                             className={`hover:bg-gray-700/50 ${product.units <= 3
-                                                    ? 'bg-red-900/30 border-l-4 border-red-500'
-                                                    : ''
+                                                ? 'bg-red-900/30 border-l-4 border-red-500'
+                                                : ''
                                                 }`}
                                         >
                                             <td className="px-4 py-3">
@@ -751,21 +822,45 @@ const ProductManagement = () => {
                                                 <span className="badge badge-info">{product.category}</span>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <span className={`badge ${product.units > 10 ? 'badge-success' :
-                                                    product.units > 0 ? 'badge-warning' : 'badge-danger'
-                                                    }`}>
-                                                    {product.units} units
-                                                </span>
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => handleStockChange(product._id, -1)}
+                                                        disabled={product.units <= 0 || updatingStock === product._id}
+                                                        className="w-6 h-6 rounded bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-bold flex items-center justify-center"
+                                                    >
+                                                        −
+                                                    </button>
+                                                    <span className={`px-2 min-w-[50px] text-center badge ${product.units > 10 ? 'badge-success' :
+                                                        product.units > 0 ? 'badge-warning' : 'badge-danger'
+                                                        }`}>
+                                                        {updatingStock === product._id ? '...' : product.units}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handleStockChange(product._id, 1)}
+                                                        disabled={updatingStock === product._id}
+                                                        className="w-6 h-6 rounded bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white text-sm font-bold flex items-center justify-center"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
                                             </td>
-                                            <td className="px-4 py-3 text-green-400 font-semibold">${product.pricePerUnit.toFixed(2)}</td>
+                                            <td className="px-4 py-3 text-green-400 font-semibold">Rs {product.pricePerUnit.toFixed(0)}</td>
                                             <td className="px-4 py-3 text-gray-400 font-mono text-xs">{product.barcode || '-'}</td>
                                             <td className="px-4 py-3">
-                                                <button
-                                                    onClick={() => handleDelete(product._id)}
-                                                    className="btn-danger text-sm px-3 py-1"
-                                                >
-                                                    Delete
-                                                </button>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleEditProduct(product)}
+                                                        className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(product._id)}
+                                                        className="btn-danger text-sm px-3 py-1"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -832,7 +927,125 @@ const ProductManagement = () => {
                     </div>
                 )
             }
-        </div >
+
+            {/* Edit Product Modal */}
+            {editingProduct && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-gray-800 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                        <div className="p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-bold text-white">Edit Product</h2>
+                                <button
+                                    onClick={() => setEditingProduct(null)}
+                                    className="text-gray-400 hover:text-white"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleUpdateProduct} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">Name *</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.name}
+                                            onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                                            className="input w-full"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">Brand</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.brand}
+                                            onChange={(e) => setEditFormData({ ...editFormData, brand: e.target.value })}
+                                            className="input w-full"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
+                                        <select
+                                            value={editFormData.category}
+                                            onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                                            className="input w-full"
+                                        >
+                                            <option value="Device">Device</option>
+                                            <option value="E-Liquid">E-Liquid</option>
+                                            <option value="Accessory">Accessory</option>
+                                            <option value="Disposable">Disposable</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">Barcode</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.barcode}
+                                            onChange={(e) => setEditFormData({ ...editFormData, barcode: e.target.value })}
+                                            className="input w-full"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">Sell Price (Rs) *</label>
+                                        <input
+                                            type="number"
+                                            value={editFormData.pricePerUnit}
+                                            onChange={(e) => setEditFormData({ ...editFormData, pricePerUnit: e.target.value })}
+                                            className="input w-full"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">Cost Price (Rs)</label>
+                                        <input
+                                            type="number"
+                                            value={editFormData.costPrice}
+                                            onChange={(e) => setEditFormData({ ...editFormData, costPrice: e.target.value })}
+                                            className="input w-full"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                                    <textarea
+                                        value={editFormData.shortDescription}
+                                        onChange={(e) => setEditFormData({ ...editFormData, shortDescription: e.target.value })}
+                                        className="input w-full"
+                                        rows={2}
+                                    />
+                                </div>
+
+                                <div className="flex gap-3 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingProduct(null)}
+                                        className="flex-1 py-2 px-4 bg-gray-600 hover:bg-gray-700 text-white rounded-lg"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                                    >
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 
